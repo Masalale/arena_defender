@@ -1,0 +1,442 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using ArenaDefender.Core.Configuration;
+using ArenaDefender.Core.Entities;
+using ArenaDefender.Core.Input;
+using ArenaDefender.Core.Mathematics;
+using ArenaDefender.Core.Systems;
+
+namespace ArenaDefender.Core.Simulation;
+
+/// <summary>Which screen the game is on.</summary>
+public enum GameState
+{
+    /// <summary>Home screen, waiting for the player.</summary>
+    Menu,
+
+    // A run is underway.
+    Playing,
+
+    /// <summary>Run over, results on screen.</summary>
+    GameOver
+}
+
+/// <summary>What reaching a new wave earned the player.</summary>
+/// <param name="Wave">The wave now starting.</param>
+/// <param name="Points">Milestone points awarded, or zero when this wave paid none.</param>
+/// <param name="GrantedExtraShot">Whether the new wave brought an extra projectile.</param>
+/// <param name="GrantedExtraLife">Whether a milestone handed a lost life back.</param>
+public readonly record struct WaveReward(int Wave, int Points, bool GrantedExtraShot, bool GrantedExtraLife);
+
+/// <summary>Everything the simulation does: entities, systems and the rules tying them together.</summary>
+public sealed class GameWorld : IEnemyActions
+{
+    private readonly GameSettings _settings;
+    private readonly IRandomSource _random;
+    private readonly DifficultyCurve _difficulty;
+    private readonly ScoreBoard _scoreBoard;
+    private readonly PowerUpSystem _powerUps;
+
+    private readonly List<Enemy> _enemies = new();
+    private readonly List<Projectile> _projectiles = new();
+    private readonly List<PowerUp> _pickups = new();
+
+    private WaveDirector _director;
+    private int _highestWaveReached;
+
+    /// <summary>Builds a world with the default settings and a fresh random source.</summary>
+    public GameWorld()
+        : this(new GameSettings(), new SystemRandomSource())
+    {
+    }
+
+    /// <summary>Builds a world from explicit settings and a random source.</summary>
+    /// <exception cref="ArgumentNullException">When a dependency is null.</exception>
+    public GameWorld(GameSettings settings, IRandomSource random)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(random);
+
+        _settings = settings;
+        _random = random;
+
+        Bounds = new ArenaBounds(settings.ArenaWidth, settings.ArenaHeight);
+        _difficulty = new DifficultyCurve(settings);
+        _scoreBoard = new ScoreBoard(settings);
+        _powerUps = new PowerUpSystem(settings);
+        _director = new WaveDirector(settings, _difficulty, random, Bounds);
+
+        Player = new Player(settings, Bounds);
+        State = GameState.Menu;
+    }
+
+    /// <summary>The player took damage that actually removed health.</summary>
+    public event Action<Vector2>? PlayerDamaged;
+
+    // The player fired a volley.
+    public event Action? PlayerFired;
+
+    // An enemy died.
+    public event Action? EnemyDestroyed;
+
+    // A power up was collected.
+    public event Action? PowerUpCollected;
+
+    /// <summary>Fired on a new wave, carrying what the player earned.</summary>
+    public event Action<WaveReward>? WaveReached;
+
+    public ArenaBounds Bounds { get; }
+
+    public GameState State { get; private set; }
+
+    public Player Player { get; private set; }
+
+    /// <summary>Enemies currently alive.</summary>
+    public IReadOnlyList<Enemy> Enemies => _enemies;
+
+    /// <summary>Projectiles in flight, both sides.</summary>
+    public IReadOnlyList<Projectile> Projectiles => _projectiles;
+
+    /// <summary>Power ups waiting on the ground.</summary>
+    public IReadOnlyList<PowerUp> Pickups => _pickups;
+
+    /// <summary>Score, combo and kill tracking.</summary>
+    public ScoreBoard Score => _scoreBoard;
+
+    public PowerUpSystem PowerUps => _powerUps;
+
+    /// <summary>Wave currently being fought.</summary>
+    public int WaveNumber => _director.CurrentWave;
+
+    /// <summary>Empties the arena and starts a fresh run.</summary>
+    public void StartNewRun()
+    {
+        _enemies.Clear();
+        _projectiles.Clear();
+        _pickups.Clear();
+
+        _scoreBoard.Reset();
+        _highestWaveReached = 1;
+
+        Player = new Player(_settings, Bounds);
+        _powerUps.Clear(Player);
+        _director = new WaveDirector(_settings, _difficulty, _random, Bounds);
+
+        State = GameState.Playing;
+    }
+
+    // Back to the menu.
+    public void ReturnToMenu() => State = GameState.Menu;
+
+    /// <summary>Advances the simulation one frame.</summary>
+    public void Update(float deltaSeconds, PlayerIntent intent)
+    {
+        // Written as a positive test so NaN is rejected instead of sneaking through.
+        if (State != GameState.Playing || !(deltaSeconds > 0f))
+        {
+            return;
+        }
+
+        // Without a clamp, a frame stall moves everything so far that fast projectiles skip
+        // clean through an enemy without ever overlapping it.
+        float step = MathF.Min(deltaSeconds, 0.25f);
+
+        UpdatePlayer(step, intent);
+        UpdateSpawning(step);
+        UpdateEnemies(step);
+        UpdateProjectiles(step);
+        UpdatePickups(step);
+
+        ResolveCollisions();
+
+        _scoreBoard.Update(step);
+        RemoveInactive();
+
+        if (Player.IsDefeated)
+        {
+            State = GameState.GameOver;
+        }
+    }
+
+    /// <inheritdoc />
+    void IEnemyActions.FireProjectile(Vector2 origin, Vector2 direction, float speed, float damage)
+    {
+        _projectiles.Add(new Projectile(
+            origin,
+            direction,
+            speed,
+            damage,
+            _settings.ProjectileRadius,
+            _settings.ProjectileLifetime,
+            ProjectileOwner.Enemy));
+    }
+
+    private void UpdatePlayer(float step, PlayerIntent intent)
+    {
+        Player.SetShotCount(ShotCountForWave(WaveNumber));
+        _powerUps.Duration = _difficulty.GetPowerUpDuration(WaveNumber);
+
+        Player.Apply(intent);
+        Player.Update(step);
+        _powerUps.Update(step, Player);
+
+        if (Player.TryConsumeShot())
+        {
+            FirePlayerShot();
+        }
+    }
+
+    /// <summary>Pays the milestone for the wave just reached and announces it.</summary>
+    /// <remarks>Called after spawning, once the director has already advanced the wave.</remarks>
+    private void SettleWaveChange()
+    {
+        int wave = WaveNumber;
+
+        if (wave <= _highestWaveReached)
+        {
+            return;
+        }
+
+        int cleared = _highestWaveReached;
+        _highestWaveReached = wave;
+
+        int points = 0;
+        bool grantedLife = false;
+
+        // Milestone waves pay out: a life back if lost, points otherwise.
+        if (_settings.MilestoneWaveInterval > 0 && wave % _settings.MilestoneWaveInterval == 0)
+        {
+            grantedLife = Player.GrantExtraLife();
+
+            if (!grantedLife)
+            {
+                points += _scoreBoard.AwardBonus(_settings.MilestonePoints);
+            }
+        }
+
+        bool grantedShot = ShotCountForWave(wave) > ShotCountForWave(cleared);
+
+        WaveReached?.Invoke(new WaveReward(wave, points, grantedShot, grantedLife));
+    }
+
+    /// <summary>How many projectiles one shot releases at the given wave.</summary>
+    private int ShotCountForWave(int waveNumber)
+    {
+        int count = 1;
+
+        foreach (int threshold in _settings.ExtraShotWaves)
+        {
+            if (waveNumber >= threshold)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>Fires a volley spread symmetrically around the facing direction.</summary>
+    /// <remarks>Even counts have no centre shot, so the offsets start either side of zero.</remarks>
+    private void FirePlayerShot()
+    {
+        Vector2 origin = Player.Position + (Player.Facing * Player.Radius);
+        float aim = GameMath.ToAngle(Player.Facing);
+        float start = -(Player.ShotCount - 1) * 0.5f * _settings.ShotSpreadRadians;
+
+        for (int index = 0; index < Player.ShotCount; index++)
+        {
+            _projectiles.Add(new Projectile(
+                origin,
+                GameMath.FromAngle(aim + start + (index * _settings.ShotSpreadRadians)),
+                _settings.PlayerProjectileSpeed,
+                Player.CurrentProjectileDamage,
+                _settings.ProjectileRadius,
+                _settings.ProjectileLifetime,
+                ProjectileOwner.Player));
+        }
+
+        PlayerFired?.Invoke();
+    }
+
+    private void UpdateSpawning(float step)
+    {
+        Enemy? spawned = _director.Update(step, _enemies.Count);
+
+        if (spawned is not null)
+        {
+            _enemies.Add(spawned);
+        }
+
+        SettleWaveChange();
+    }
+
+    private void UpdateEnemies(float step)
+    {
+        foreach (Enemy enemy in _enemies)
+        {
+            enemy.Advance(Player.Position, this, step);
+        }
+    }
+
+    private void UpdateProjectiles(float step)
+    {
+        foreach (Projectile projectile in _projectiles)
+        {
+            projectile.Update(step);
+
+            // Wide enough to hit a sentry holding its standoff outside the arena. A tighter margin
+            // made those sentries unkillable, and a wave ends only when the arena is empty.
+            if (Bounds.IsOutside(projectile.Position, 400f))
+            {
+                projectile.Deactivate();
+            }
+        }
+    }
+
+    private void UpdatePickups(float step)
+    {
+        foreach (PowerUp pickup in _pickups)
+        {
+            pickup.Update(step);
+            pickup.AttractTowards(Player.Position, _settings.PowerUpMagnetRange, step);
+        }
+    }
+
+    private void ResolveCollisions()
+    {
+        ResolveProjectileHits();
+        ResolveContactDamage();
+        ResolvePickups();
+    }
+
+    private void ResolveProjectileHits()
+    {
+        foreach (Projectile projectile in _projectiles)
+        {
+            if (!projectile.IsActive)
+            {
+                continue;
+            }
+
+            if (projectile.Owner == ProjectileOwner.Player)
+            {
+                Enemy? hit = CollisionResolver.FindFirstOverlap(projectile, _enemies);
+
+                if (hit is null)
+                {
+                    continue;
+                }
+
+                projectile.Deactivate();
+
+                if (hit.TakeDamage(projectile.Damage))
+                {
+                    RewardKill(hit);
+                }
+            }
+            else if (CollisionResolver.Overlaps(projectile, Player))
+            {
+                projectile.Deactivate();
+                DamagePlayer(projectile.Damage, projectile.Position);
+            }
+        }
+    }
+
+    private void ResolveContactDamage()
+    {
+        foreach (Enemy enemy in _enemies)
+        {
+            if (!CollisionResolver.Overlaps(enemy, Player))
+            {
+                continue;
+            }
+
+            DamagePlayer(enemy.ContactDamage, enemy.Position);
+        }
+    }
+
+    private void ResolvePickups()
+    {
+        foreach (PowerUp pickup in _pickups)
+        {
+            if (!CollisionResolver.Overlaps(pickup, Player))
+            {
+                continue;
+            }
+
+            pickup.Deactivate();
+            _powerUps.Collect(pickup.Kind, Player);
+            _scoreBoard.AwardPickup();
+            PowerUpCollected?.Invoke();
+        }
+    }
+
+    private void RewardKill(Enemy enemy)
+    {
+        _scoreBoard.AwardKill(enemy.ScoreValue);
+        EnemyDestroyed?.Invoke();
+
+        if (_random.Chance(_settings.PowerUpDropChance))
+        {
+            _pickups.Add(new PowerUp(
+                enemy.Position,
+                ChooseDrop(),
+                _settings.PowerUpRadius,
+                _settings.PowerUpLifetime));
+        }
+    }
+
+    /// <summary>Picks the drop an enemy leaves, leaning toward repairs when the player is hurt.</summary>
+    private PowerUpKind ChooseDrop()
+    {
+        if (Player.HealthFraction < 0.45f && _random.Chance(0.55f))
+        {
+            return PowerUpKind.Repair;
+        }
+
+        return _random.NextInt(0, 5) switch
+        {
+            0 => PowerUpKind.Repair,
+            1 => PowerUpKind.RapidFire,
+            2 => PowerUpKind.DoubleDamage,
+            3 => PowerUpKind.SpeedBoost,
+            _ => PowerUpKind.Shield
+        };
+    }
+
+    /// <summary>Hits the player, emptying the arena if a life was lost.</summary>
+    private void DamagePlayer(float amount, Vector2 source)
+    {
+        int livesBefore = Player.Lives;
+        bool wasHurt = Player.TakeDamage(amount);
+
+        if (!wasHurt)
+        {
+            return;
+        }
+
+        _scoreBoard.BreakCombo();
+        PlayerDamaged?.Invoke(source);
+
+        if (Player.Lives == livesBefore)
+        {
+            return;
+        }
+
+        // A life lost, so the arena empties to give the player room. The wave restarts, or the
+        // empty arena would count as cleared.
+        _director.RestartWave();
+        _powerUps.Clear(Player);
+
+        _enemies.Clear();
+        _projectiles.Clear();
+    }
+
+    private void RemoveInactive()
+    {
+        _enemies.RemoveAll(enemy => !enemy.IsActive);
+        _projectiles.RemoveAll(projectile => !projectile.IsActive);
+        _pickups.RemoveAll(pickup => !pickup.IsActive);
+    }
+}
