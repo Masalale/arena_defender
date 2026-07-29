@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArenaDefender.Core", "src\A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArenaDefender.Game", "src\ArenaDefender.Game\ArenaDefender.Game.csproj", "{8642954C-6C28-4BD0-8C4D-2C408715828D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArenaDefender.UnitTests", "tests\ArenaDefender.UnitTests\ArenaDefender.UnitTests.csproj", "{47DEB98B-C240-4B65-84F3-934DF9C17449}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +47,18 @@ Global
 		{8642954C-6C28-4BD0-8C4D-2C408715828D}.Release|x64.Build.0 = Release|Any CPU
 		{8642954C-6C28-4BD0-8C4D-2C408715828D}.Release|x86.ActiveCfg = Release|Any CPU
 		{8642954C-6C28-4BD0-8C4D-2C408715828D}.Release|x86.Build.0 = Release|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Debug|x64.Build.0 = Debug|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Debug|x86.Build.0 = Debug|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Release|Any CPU.Build.0 = Release|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Release|x64.ActiveCfg = Release|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Release|x64.Build.0 = Release|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Release|x86.ActiveCfg = Release|Any CPU
+		{47DEB98B-C240-4B65-84F3-934DF9C17449}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,5 +66,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{33AFA695-3486-4DE7-94FF-4D1193708188} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{8642954C-6C28-4BD0-8C4D-2C408715828D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{47DEB98B-C240-4B65-84F3-934DF9C17449} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
