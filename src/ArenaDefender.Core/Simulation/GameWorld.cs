@@ -434,12 +434,20 @@ public sealed class GameWorld : IEnemyActions
         }
 
         // A life lost, so the arena empties to give the player room. The wave restarts, or the
-        // empty arena would count as cleared.
+        // empty arena would count as cleared. Deactivated rather than removed because the lists
+        // are mid-enumeration; RemoveInactive sweeps them at end of frame.
         _director.RestartWave();
         _powerUps.Clear(Player);
 
-        _enemies.Clear();
-        _projectiles.Clear();
+        foreach (Enemy enemy in _enemies)
+        {
+            enemy.Deactivate();
+        }
+
+        foreach (Projectile projectile in _projectiles)
+        {
+            projectile.Deactivate();
+        }
     }
 
     private void RemoveInactive()
