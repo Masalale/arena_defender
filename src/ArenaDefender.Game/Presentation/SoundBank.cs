@@ -4,10 +4,8 @@ using Microsoft.Xna.Framework.Audio;
 
 namespace ArenaDefender.Presentation;
 
-/// <summary>The events the game makes a noise for.</summary>
 public enum GameSound
 {
-    /// <summary>The player let off a volley.</summary>
     Shot,
 
     EnemyDown,
@@ -17,11 +15,9 @@ public enum GameSound
 
     PickUp,
 
-    /// <summary>A new wave began.</summary>
     Wave
 }
 
-/// <summary>Loads and plays the effects and the looping lobby music.</summary>
 public sealed class SoundBank : IDisposable
 {
     private static readonly string[] Files = { "shot", "enemy_down", "player_hit", "pickup", "wave" };
@@ -37,12 +33,12 @@ public sealed class SoundBank : IDisposable
     {
         for (int i = 0; i < Files.Length; i++)
         {
-            _effects[i] = Load(Files[i] + ".wav");
+            _effects[i] = Load(Path.Combine("Sounds", Files[i] + ".wav"));
         }
 
         try
         {
-            _music = Load("lobby_music.wav").CreateInstance();
+            _music = Load(Path.Combine("Music", "lobby_music.wav")).CreateInstance();
             _music.IsLooped = true;
             _music.Volume = 0.35f;
         }
@@ -52,7 +48,6 @@ public sealed class SoundBank : IDisposable
         }
     }
 
-    /// <summary>Ticks the repeat limiters down.</summary>
     public void Update(float deltaSeconds)
     {
         for (int i = 0; i < _cooldowns.Length; i++)
@@ -83,13 +78,12 @@ public sealed class SoundBank : IDisposable
         }
     }
 
-    /// <summary>Shot sound: pitch drops and volume climbs with the bullet count.</summary>
+    /// <summary>Pitch drops and volume climbs with the bullet count.</summary>
     public void PlayShot(int shotCount) => Play(
         GameSound.Shot,
         MathF.Max(-0.4f, -0.08f * (shotCount - 1)),
         1f + (0.15f * (shotCount - 1)));
 
-    /// <summary>Starts the lobby music, unless it's already playing.</summary>
     public void PlayLobbyMusic()
     {
         if (_music is { State: not SoundState.Playing })
@@ -98,7 +92,6 @@ public sealed class SoundBank : IDisposable
         }
     }
 
-    /// <summary>Stops the lobby music.</summary>
     public void StopLobbyMusic()
     {
         if (_music is { State: not SoundState.Stopped })
@@ -107,7 +100,6 @@ public sealed class SoundBank : IDisposable
         }
     }
 
-    /// <summary>Disposes the music and every loaded effect.</summary>
     public void Dispose()
     {
         _music?.Dispose();

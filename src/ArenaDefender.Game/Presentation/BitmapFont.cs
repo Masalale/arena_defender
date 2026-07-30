@@ -18,13 +18,12 @@ public sealed class BitmapFont : IDisposable
     private readonly Texture2D _texture;
     private bool _disposed;
 
-    /// <summary>Loads the glyph atlas from Assets/Font/font_atlas.png.</summary>
     /// <exception cref="ArgumentNullException">The graphics device was null.</exception>
     public BitmapFont(GraphicsDevice graphicsDevice)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
 
-        string assetPath = Path.Combine(AppContext.BaseDirectory, "Assets", "font_atlas.png");
+        string assetPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Font", "font_atlas.png");
 
         try
         {
@@ -110,7 +109,6 @@ public sealed class BitmapFont : IDisposable
         }
     }
 
-    /// <summary>Draws <paramref name="text"/> centred on <paramref name="center"/>, using <see cref="Measure"/> to place it.</summary>
     public void DrawStringCentered(SpriteBatch spriteBatch, string text, Vector2 center, Color color, float scale = 1f)
     {
         Vector2 size = Measure(text, scale);
@@ -118,12 +116,11 @@ public sealed class BitmapFont : IDisposable
         DrawString(spriteBatch, text, topLeft, color, scale);
     }
 
-    /// <summary>Draws <paramref name="text"/> with its right edge sitting at <paramref name="right"/>.</summary>
     public void DrawStringRightAligned(
         SpriteBatch spriteBatch, string text, float right, float top, Color color, float scale = 1f) =>
         DrawString(spriteBatch, text, new Vector2(right - Measure(text, scale).X, top), color, scale);
 
-    /// <summary>Disposes the atlas texture. Safe to call twice.</summary>
+    /// <summary>Safe to call twice.</summary>
     public void Dispose()
     {
         if (_disposed)

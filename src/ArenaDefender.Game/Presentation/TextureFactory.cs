@@ -6,14 +6,12 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace ArenaDefender.Presentation;
 
-/// <summary>Loads texture assets from the Assets directory and caches them by file name.</summary>
 public sealed class TextureFactory : IDisposable
 {
     private readonly GraphicsDevice _device;
     private readonly Dictionary<string, Texture2D> _cache = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
-    /// <summary>Loads the shared pixel and background textures.</summary>
     /// <exception cref="ArgumentNullException">The device was null.</exception>
     /// <exception cref="FileNotFoundException">A texture file was missing.</exception>
     public TextureFactory(GraphicsDevice device)
@@ -22,19 +20,18 @@ public sealed class TextureFactory : IDisposable
         _device = device;
 
         Pixel = LoadFromFile("pixel.png");
-        Background = LoadFromFile("background.jpg");
+        Background = LoadFromFile("background/background.jpg");
     }
 
     /// <summary>One white pixel, stretched into whatever rectangle needs filling.</summary>
     public Texture2D Pixel { get; }
 
-    /// <summary>The arena background image.</summary>
     public Texture2D Background { get; }
 
     /// <summary>Loads a sprite by file name, so the second ask doesn't touch disk again.</summary>
     public Texture2D Sprite(string fileName) => LoadFromFile(fileName);
 
-    /// <summary>Disposes every texture this factory made. Safe to call twice.</summary>
+    /// <summary>Safe to call twice.</summary>
     public void Dispose()
     {
         if (_disposed)
@@ -51,7 +48,6 @@ public sealed class TextureFactory : IDisposable
         _disposed = true;
     }
 
-    /// <summary>Loads a texture off disk, keeping a cached copy under its file name.</summary>
     private Texture2D LoadFromFile(string relativeFileName)
     {
         if (_cache.TryGetValue(relativeFileName, out Texture2D? cached))
@@ -59,13 +55,21 @@ public sealed class TextureFactory : IDisposable
             return cached;
         }
 
-        string fullPath = Path.Combine(AppContext.BaseDirectory, "Assets", relativeFileName);
+        string fullPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Textures", relativeFileName);
 
         if (!File.Exists(fullPath))
         {
-            throw new FileNotFoundException(
-                $"Required texture asset not found at '{fullPath}'. Ensure Assets folder is copied to the build output.",
-                fullPath);
+            // The background sits directly under Assets/ rather than in Assets/Textures/.
+            string altPath = Path.Combine(AppContext.BaseDirectory, "Assets", relativeFileName);
+
+            if (!File.Exists(altPath))
+            {
+                throw new FileNotFoundException(
+                    $"Required texture asset not found at '{fullPath}'. Ensure Assets folder is copied to the build output.",
+                    fullPath);
+            }
+
+            fullPath = altPath;
         }
 
         using FileStream stream = File.OpenRead(fullPath);
