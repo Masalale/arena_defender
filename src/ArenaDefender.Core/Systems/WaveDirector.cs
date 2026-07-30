@@ -8,9 +8,6 @@ using ArenaDefender.Core.Simulation;
 
 namespace ArenaDefender.Core.Systems;
 
-/// <summary>
-/// Runs the waves: enemies spawn one at a time, and a wave ends only when they are all dead.
-/// </summary>
 public sealed class WaveDirector
 {
     private readonly GameSettings _settings;
@@ -19,10 +16,9 @@ public sealed class WaveDirector
     private readonly ArenaBounds _bounds;
 
     private float _timeUntilNextSpawn;
+    private float _breatherRemaining;
     private int _remainingToSpawn;
 
-    /// <summary>Starts on wave one and immediately kicks off the first wave.</summary>
-    /// <exception cref="ArgumentNullException">Thrown when any dependency is null.</exception>
     public WaveDirector(
         GameSettings settings,
         DifficultyCurve difficulty,
@@ -42,16 +38,12 @@ public sealed class WaveDirector
         BeginWave();
     }
 
-    /// <summary>Wave currently in progress, counting from one.</summary>
     public int CurrentWave { get; private set; }
 
-    /// <summary>Enemies still to be sent out this wave.</summary>
     public int RemainingToSpawn => _remainingToSpawn;
 
-    /// <summary>Enemies this wave will send out in total.</summary>
     public int WaveSize => _difficulty.GetEnemyCount(CurrentWave);
 
-    /// <summary>Steps the wave forward; returns the next enemy to add, or null when nothing is due.</summary>
     public Enemy? Update(float deltaSeconds, int activeEnemyCount)
     {
         if (deltaSeconds <= 0f)
@@ -59,10 +51,17 @@ public sealed class WaveDirector
             return null;
         }
 
+        if (_breatherRemaining > 0f)
+        {
+            _breatherRemaining = MathF.Max(0f, _breatherRemaining - deltaSeconds);
+            return null;
+        }
+
         if (_remainingToSpawn == 0 && activeEnemyCount == 0)
         {
             CurrentWave++;
             BeginWave();
+            _breatherRemaining = _settings.WaveBreatherSeconds;
             return null;
         }
 
@@ -88,9 +87,9 @@ public sealed class WaveDirector
     public void RestartWave()
     {
         BeginWave();
+        _breatherRemaining = _settings.WaveBreatherSeconds;
     }
 
-    /// <summary>Builds one enemy of a type that fits the wave's variety progress.</summary>
     public Enemy CreateEnemy(int waveNumber)
     {
         float variety = _difficulty.GetVarietyProgress(waveNumber);
