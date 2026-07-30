@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using ArenaDefender.Core.Configuration;
 using ArenaDefender.Core.Entities;
+using ArenaDefender.Core.Entities.Enemies;
 using ArenaDefender.Core.Input;
 using ArenaDefender.Core.Mathematics;
 using ArenaDefender.Core.Systems;
@@ -353,6 +354,14 @@ public sealed class GameWorld : IEnemyActions
             }
 
             DamagePlayer(enemy.ContactDamage, enemy.Position);
+
+            // A chaser spends itself on the hit. No score, the player did not kill it, but the
+            // death still fires so the explosion and sound play.
+            if (enemy is ChaserEnemy)
+            {
+                enemy.Deactivate();
+                EnemyDestroyed?.Invoke();
+            }
         }
     }
 
