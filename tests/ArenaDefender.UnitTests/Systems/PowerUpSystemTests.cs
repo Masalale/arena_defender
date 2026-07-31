@@ -5,7 +5,6 @@ using ArenaDefender.Core.Systems;
 
 namespace ArenaDefender.UnitTests.Systems;
 
-    /// <summary>Collected power ups: the effect they apply, and when it expires.</summary>
 public class PowerUpSystemTests
 {
     private const float Tolerance = 1e-3f;
@@ -39,7 +38,7 @@ public class PowerUpSystemTests
     [Theory]
     [InlineData(PowerUpKind.RapidFire)]
     [InlineData(PowerUpKind.DoubleDamage)]
-    [InlineData(PowerUpKind.SpeedBoost)]
+    [InlineData(PowerUpKind.BoostyBoost)]
     public void Update_OnceTheDurationElapses_TheEffectExpiresAndMultipliersReturnToOne(PowerUpKind kind)
     {
         GameSettings settings = Settings();

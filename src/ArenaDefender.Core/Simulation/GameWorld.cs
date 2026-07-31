@@ -10,27 +10,17 @@ using ArenaDefender.Core.Systems;
 
 namespace ArenaDefender.Core.Simulation;
 
-/// <summary>Which screen the game is on.</summary>
 public enum GameState
 {
-    /// <summary>Home screen, waiting for the player.</summary>
     Menu,
 
-    // A run is underway.
     Playing,
 
-    /// <summary>Run over, results on screen.</summary>
     GameOver
 }
 
-/// <summary>What reaching a new wave earned the player.</summary>
-/// <param name="Wave">The wave now starting.</param>
-/// <param name="Points">Milestone points awarded, or zero when this wave paid none.</param>
-/// <param name="GrantedExtraShot">Whether the new wave brought an extra projectile.</param>
-/// <param name="GrantedExtraLife">Whether a milestone handed a lost life back.</param>
 public readonly record struct WaveReward(int Wave, int Points, bool GrantedExtraShot, bool GrantedExtraLife);
 
-/// <summary>Everything the simulation does: entities, systems and the rules tying them together.</summary>
 public sealed class GameWorld : IEnemyActions
 {
     private readonly GameSettings _settings;
@@ -46,14 +36,11 @@ public sealed class GameWorld : IEnemyActions
     private WaveDirector _director;
     private int _highestWaveReached;
 
-    /// <summary>Builds a world with the default settings and a fresh random source.</summary>
     public GameWorld()
         : this(new GameSettings(), new SystemRandomSource())
     {
     }
 
-    /// <summary>Builds a world from explicit settings and a random source.</summary>
-    /// <exception cref="ArgumentNullException">When a dependency is null.</exception>
     public GameWorld(GameSettings settings, IRandomSource random)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -75,16 +62,12 @@ public sealed class GameWorld : IEnemyActions
     /// <summary>The player took damage that actually removed health.</summary>
     public event Action<Vector2>? PlayerDamaged;
 
-    // The player fired a volley.
     public event Action? PlayerFired;
 
-    // An enemy died.
     public event Action? EnemyDestroyed;
 
-    // A power up was collected.
     public event Action? PowerUpCollected;
 
-    /// <summary>Fired on a new wave, carrying what the player earned.</summary>
     public event Action<WaveReward>? WaveReached;
 
     public ArenaBounds Bounds { get; }
@@ -93,24 +76,18 @@ public sealed class GameWorld : IEnemyActions
 
     public Player Player { get; private set; }
 
-    /// <summary>Enemies currently alive.</summary>
     public IReadOnlyList<Enemy> Enemies => _enemies;
 
-    /// <summary>Projectiles in flight, both sides.</summary>
     public IReadOnlyList<Projectile> Projectiles => _projectiles;
 
-    /// <summary>Power ups waiting on the ground.</summary>
     public IReadOnlyList<PowerUp> Pickups => _pickups;
 
-    /// <summary>Score, combo and kill tracking.</summary>
     public ScoreBoard Score => _scoreBoard;
 
     public PowerUpSystem PowerUps => _powerUps;
 
-    /// <summary>Wave currently being fought.</summary>
     public int WaveNumber => _director.CurrentWave;
 
-    /// <summary>Empties the arena and starts a fresh run.</summary>
     public void StartNewRun()
     {
         _enemies.Clear();
@@ -127,10 +104,8 @@ public sealed class GameWorld : IEnemyActions
         State = GameState.Playing;
     }
 
-    // Back to the menu.
     public void ReturnToMenu() => State = GameState.Menu;
 
-    /// <summary>Advances the simulation one frame.</summary>
     public void Update(float deltaSeconds, PlayerIntent intent)
     {
         // Written as a positive test so NaN is rejected instead of sneaking through.
@@ -160,7 +135,6 @@ public sealed class GameWorld : IEnemyActions
         }
     }
 
-    /// <inheritdoc />
     void IEnemyActions.FireProjectile(Vector2 origin, Vector2 direction, float speed, float damage)
     {
         _projectiles.Add(new Projectile(
@@ -188,8 +162,7 @@ public sealed class GameWorld : IEnemyActions
         }
     }
 
-    /// <summary>Pays the milestone for the wave just reached and announces it.</summary>
-    /// <remarks>Called after spawning, once the director has already advanced the wave.</remarks>
+    // Called after spawning, once the director has already advanced the wave.
     private void SettleWaveChange()
     {
         int wave = WaveNumber;
@@ -221,7 +194,6 @@ public sealed class GameWorld : IEnemyActions
         WaveReached?.Invoke(new WaveReward(wave, points, grantedShot, grantedLife));
     }
 
-    /// <summary>How many projectiles one shot releases at the given wave.</summary>
     private int ShotCountForWave(int waveNumber)
     {
         int count = 1;
@@ -237,8 +209,7 @@ public sealed class GameWorld : IEnemyActions
         return count;
     }
 
-    /// <summary>Fires a volley spread symmetrically around the facing direction.</summary>
-    /// <remarks>Even counts have no centre shot, so the offsets start either side of zero.</remarks>
+    // Even counts have no centre shot, so the offsets start either side of zero.
     private void FirePlayerShot()
     {
         Vector2 origin = Player.Position + (Player.Facing * Player.Radius);
@@ -409,7 +380,7 @@ public sealed class GameWorld : IEnemyActions
             0 => PowerUpKind.Repair,
             1 => PowerUpKind.RapidFire,
             2 => PowerUpKind.DoubleDamage,
-            3 => PowerUpKind.SpeedBoost,
+            3 => PowerUpKind.BoostyBoost,
             _ => PowerUpKind.Shield
         };
     }
