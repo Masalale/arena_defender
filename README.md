@@ -33,3 +33,9 @@ dotnet test
 - Sprites: https://kenney.nl/assets/simple-space
 
 Both are CC0, so no attribution is required.
+
+## Submission
+
+- [Application Design Document](docs/ARCHITECTURE.md)
+- [Testing Strategy](docs/TESTING-STRATEGY.md)
+- [Video demonstration](https://drive.google.com/file/d/1pJbmJYUl6PZMKd5KkyMqg561SXR6UmZL/view?usp=sharing)
