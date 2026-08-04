@@ -1,6 +1,6 @@
 # Arena Defender
 
-A 2D survival arena shooter written in C# with MonoGame for .NET 8. Waves of enemies
+A 2D survival arena shooter written in C# with MonoGame for .NET 9. Waves of enemies
 arrive from every edge of the arena, faster and harder the further you get, and you
 hold the arena for as long as you can. The run ends when your last life is gone.
 
@@ -15,7 +15,7 @@ hold the arena for as long as you can. The run ends when your last life is gone.
 
 ## Build and run
 
-Requires the .NET 8 SDK or newer. Nothing else.
+Requires the .NET 9 SDK or newer. Nothing else.
 
 ```bash
 dotnet run --project src/ArenaDefender.Game
